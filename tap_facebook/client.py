@@ -110,7 +110,11 @@ class FacebookStream(RESTStream):
             self.logger.info(msg)
             return
 
-        if HTTPStatus.BAD_REQUEST <= response.status_code < HTTPStatus.INTERNAL_SERVER_ERROR:
+        if (
+            HTTPStatus.BAD_REQUEST
+            <= response.status_code
+            < HTTPStatus.INTERNAL_SERVER_ERROR
+        ):
             msg = (
                 f"{response.status_code} Client Error: "
                 f"{response.content!s} (Reason: {response.reason}) for path: {full_path}"
@@ -171,15 +175,37 @@ class IncrementalFacebookStream(FacebookStream, metaclass=abc.ABCMeta):
         if self.replication_key:
             params["sort"] = "asc"
             params["order_by"] = self.replication_key
-            ts = pendulum.parse(self.get_starting_replication_key_value(context))  # type: ignore[arg-type]
-            params["filtering"] = json.dumps(
-                [
-                    {
-                        "field": f"{self.filter_entity}.{self.replication_key}",
-                        "operator": "GREATER_THAN",
-                        "value": int(ts.timestamp()),  # type: ignore[union-attr]
-                    },
-                ],
-            )
+
+            # Get the replication key value and handle None case
+            replication_key_value = self.get_starting_replication_key_value(context)
+            if replication_key_value is not None:
+                ts = pendulum.parse(replication_key_value)  # type: ignore[arg-type]
+                params["filtering"] = json.dumps(
+                    [
+                        {
+                            "field": f"{self.filter_entity}.{self.replication_key}",
+                            "operator": "GREATER_THAN",
+                            "value": int(ts.timestamp()),  # type: ignore[union-attr]
+                        },
+                    ],
+                )
+            else:
+                # Handle the case when there's no replication key value
+                # This could be:
+                # 1. Fall back to a default date
+                fallback_date = self.config.get("start_date")
+                if fallback_date:
+                    ts = pendulum.parse(fallback_date)
+                    params["filtering"] = json.dumps(
+                        [
+                            {
+                                "field": f"{self.filter_entity}.{self.replication_key}",
+                                "operator": "GREATER_THAN",
+                                "value": int(ts.timestamp()),
+                            },
+                        ],
+                    )
+                # 2. Or maybe don't add filtering at all for the first run
+                # (if fallback_date is None, no filtering will be added)
 
         return params

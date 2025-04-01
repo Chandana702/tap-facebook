@@ -233,47 +233,42 @@ class AdsInsightStream(Stream):
     ) -> pendulum.Date:
         lookback_window = self._report_definition["lookback_window"]
 
-        config_start_date = self.config.get("start_date")
+        config_start_date = pendulum.parse(self.config["start_date"]).date()  # type: ignore[union-attr]
+        incremental_start_date = pendulum.parse(  # type: ignore[union-attr]
+            self.get_starting_replication_key_value(context),  # type: ignore[arg-type]
+        ).date()
+        lookback_start_date = incremental_start_date.subtract(days=lookback_window)
 
-        if config_start_date:
-            config_start_date = pendulum.parse(self.config["start_date"]).date()  # type: ignore[union-attr]
-            incremental_start_date = pendulum.parse(  # type: ignore[union-attr]
-                self.get_starting_replication_key_value(context),  # type: ignore[arg-type]
-            ).date()
-            lookback_start_date = incremental_start_date.subtract(days=lookback_window)
-
-            # Don't use lookback if this is the first sync. Just start where the user requested.
-            if config_start_date >= incremental_start_date:
-                report_start = config_start_date
-                self.logger.info("Using configured start_date as report start filter.")
-            else:
-                self.logger.info(
-                    "Incremental sync, applying lookback '%s' to the "
-                    "bookmark start_date '%s'. Syncing "
-                    "reports starting on '%s'.",
-                    lookback_window,
-                    incremental_start_date,
-                    lookback_start_date,
-                )
-                report_start = lookback_start_date
-
+        # Don't use lookback if this is the first sync. Just start where the user requested.
+        if config_start_date >= incremental_start_date:
+            report_start = config_start_date
+            self.logger.info("Using configured start_date as report start filter.")
         else:
+            self.logger.info(
+                "Incremental sync, applying lookback '%s' to the "
+                "bookmark start_date '%s'. Syncing "
+                "reports starting on '%s'.",
+                lookback_window,
+                incremental_start_date,
+                lookback_start_date,
+            )
+            report_start = lookback_start_date
 
-            # Facebook store metrics maximum of 37 months old. Any time range that
-            # older that 37 months from current date would result in 400 Bad request
-            # HTTP response.
-            # https://developers.facebook.com/docs/marketing-api/reference/ad-account/insights/#overview
-            today = pendulum.today().date()
-            oldest_allowed_start_date = today.subtract(months=37)
-            if report_start < oldest_allowed_start_date:
-                report_start = oldest_allowed_start_date
-                self.logger.info(
-                    "Report start date '%s' is older than 37 months. "
-                    "Using oldest allowed start date '%s' instead.",
-                    report_start,
-                    oldest_allowed_start_date,
-                )
-            return report_start
+        # Facebook store metrics maximum of 37 months old. Any time range that
+        # older that 37 months from current date would result in 400 Bad request
+        # HTTP response.
+        # https://developers.facebook.com/docs/marketing-api/reference/ad-account/insights/#overview
+        today = pendulum.today().date()
+        oldest_allowed_start_date = today.subtract(months=37)
+        if report_start < oldest_allowed_start_date:
+            report_start = oldest_allowed_start_date
+            self.logger.info(
+                "Report start date '%s' is older than 37 months. "
+                "Using oldest allowed start date '%s' instead.",
+                report_start,
+                oldest_allowed_start_date,
+            )
+        return report_start
 
     def get_records(
         self,
@@ -283,8 +278,9 @@ class AdsInsightStream(Stream):
 
         time_increment = self._report_definition["time_increment_days"]
 
-        sync_end_date = self.config.get("end_date", pendulum.today().to_date_string())
-        sync_end_date = pendulum.parse(sync_end_date).date()  # type: ignore[union-attr]
+        sync_end_date = pendulum.parse(  # type: ignore[union-attr]
+            self.config.get("end_date", pendulum.today().to_date_string()),
+        ).date()
 
         report_start = self._get_start_date(context)
         report_end = report_start.add(days=time_increment)
