@@ -166,7 +166,7 @@ class AdAccountsStream(FacebookStream):
         Property("tax_id_type", StringType),
         Property("timezone_id", IntegerType),
         Property("timezone_name", StringType),
-        Property("timezone_offset_hours_utc", IntegerType),
+        Property("timezone_offset_hours_utc", NumberType),
         Property("agency_client_declaration_agency_representing_client", IntegerType),
         Property("agency_client_declaration_client_based_in_france", IntegerType),
         Property("agency_client_declaration_client_city", StringType),
@@ -220,7 +220,9 @@ class AdAccountsStream(FacebookStream):
         row: Record,
         context: Context | None = None,  # noqa: ARG002
     ) -> Record | None:
-        row["amount_spent"] = int(row["amount_spent"]) if "amount_spent" in row else None
+        row["amount_spent"] = (
+            int(row["amount_spent"]) if "amount_spent" in row else None
+        )
         row["balance"] = int(row["balance"]) if "balance" in row else None
         row["min_campaign_group_spend_cap"] = (
             int(row["min_campaign_group_spend_cap"])
