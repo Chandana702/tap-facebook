@@ -50,7 +50,7 @@ class AdImages(FacebookStream):
     path = f"/adimages?fields={columns}"
     tap_stream_id = "images"
     replication_method = REPLICATION_INCREMENTAL
-    replication_key = "id"
+    replication_key = "created_time"
 
     schema = PropertiesList(
         Property("id", StringType),
