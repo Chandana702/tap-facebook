@@ -83,5 +83,5 @@ class AdImages(FacebookStream):
         next_page_token: t.Any | None,  # noqa: ANN401
     ) -> dict[str, t.Any]:
         params = super().get_url_params(context, next_page_token)
-        params.pop("sort")
+        params.pop("sort", None)
         return params
